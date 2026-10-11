@@ -1,0 +1,38 @@
+# Build
+build/
+out/
+cmake-build-*/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# clangd / compilation database
+.cache/
+compile_commands.json
+
+# Binaries and objects
+*.o
+*.obj
+*.a
+*.so
+*.out
+*.exe
+
+# Editors / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Debug / profiling
+core
+core.*
+*.log
+perf.data*
+callgrind.out.*
+
+# OS
+.DS_Store
+Thumbs.db
