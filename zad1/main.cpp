@@ -1,10 +1,24 @@
 #include <print>
+#include <sstream>
+#include <stdexcept>
 #include "sched/setup_matrix.hpp"
 
-int main() {
-    sched::setup_matrix m{3};
-    std::println("rozmiar: {}", m.size());
+namespace {
 
-    m[0,0] = 2;
-    std::println("wartośc: {}", m[1,0]);
+void test_valid() {
+    std::istringstream in{"3\n 0 1 2\n3 0 4\n5 6 0\n"};
+    
+    std::size_t n;
+    in >> n;
+
+    auto m = sched::read_setup_matrix(in, 3);
+    bool ok = m[0, 1] == 1 && m[1, 2] == 4 && m[2, 0] == 5 && m[2, 2] == 0;
+    
+    std::println("valid:         {}", ok ? "OK" : "FAIL");
+}
+}  // namespace
+
+int main() {
+    test_valid();
+    
 }

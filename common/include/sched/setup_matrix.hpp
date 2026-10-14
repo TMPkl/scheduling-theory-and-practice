@@ -22,6 +22,6 @@ private:
 };
 
 // Deklaracja funkcji z .cpp: sam nagłówek i średnik, ciało jest w setup_matrix.cpp
-setup_matrix read_setup_matrix(std::istream& in);
+setup_matrix read_setup_matrix(std::istream& in, std::size_t n);
 
 }  // namespace sched
