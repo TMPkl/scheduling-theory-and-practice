@@ -1,0 +1,21 @@
+50 algorytmu: 0.037 ms
+
+100  Czas algorytmu: 0.143 ms
+
+150 Czas algorytmu: 0.271 ms
+
+200 Czas algorytmu: 0.230 ms
+
+250 Czas algorytmu: 0.412 ms
+
+300 Czas algorytmu: 0.768 ms
+
+350 Czas algorytmu: 1.449 ms
+
+400 Czas algorytmu: 0.918 ms
+
+450 Czas algorytmu: 1.133 ms
+
+500 Czas algorytmu: 1.419 ms
+
+

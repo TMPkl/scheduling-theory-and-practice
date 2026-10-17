@@ -36,3 +36,6 @@ callgrind.out.*
 # OS
 .DS_Store
 Thumbs.db
+
+# Dane
+data/

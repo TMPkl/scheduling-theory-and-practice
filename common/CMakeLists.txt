@@ -1,4 +1,6 @@
 add_library(sched_common STATIC
+    src/generator.cpp
+    src/instance.cpp
     src/job.cpp
     src/setup_matrix.cpp
 )
