@@ -15,9 +15,9 @@ target_compile_options(project_warnings INTERFACE
     -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion
 )
 
+find_package(Boost 1.70 REQUIRED CONFIG)
+
 # --- Podprojekty -------------------------------------------------------------
 add_subdirectory(common)
 add_subdirectory(zad1)
-add_subdirectory(generator)
 
-find_package(Boost 1.70 REQUIRED CONFIG)

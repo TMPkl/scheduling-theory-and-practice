@@ -8,6 +8,8 @@
 #include <fstream>
 #include <boost/dynamic_bitset.hpp>
 #include <cmath>
+#include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -42,6 +44,49 @@ void test_valid() {
 
 
 
+
+// Liczba następnych gałęzi (k) rozbudowywanych z każdego stanu oraz szerokość wiązki.
+std::size_t K = 7;
+
+// Częściowe rozwiązanie w drzewie przeszukiwań.
+struct State {
+    std::vector<int> order;            // id zadań (0-based)
+    boost::dynamic_bitset<> done;
+    int time = 0;
+    int late = 0;
+    int last = -1;
+};
+
+// Zwraca do K następników stanu s: zadania, które zdążą się w terminie
+// (najmniejszy setup + processing); gdy żadne nie zdąży - najmniejszy setup + processing wśród spóźnionych.
+std::vector<State> expand(const sched::instance& inst, const State& s) {
+    struct Cand { int id; int total; };
+    std::vector<Cand> on_time, late;
+    for (std::size_t i = 0; i < inst.size(); ++i) {
+        if (s.done[i]) continue;
+        const int total = inst.setups()[static_cast<std::size_t>(s.last), i] + inst.job(i).processing_time();
+        (s.time + total > inst.job(i).due_date() ? late : on_time).push_back({static_cast<int>(i), total});
+    }
+    const bool is_late = on_time.empty();
+    auto& cands = is_late ? late : on_time;
+    const std::size_t k = std::min(K, cands.size());
+    std::partial_sort(cands.begin(), cands.begin() + static_cast<std::ptrdiff_t>(k), cands.end(),
+                      [](const Cand& a, const Cand& b) { return a.total < b.total; });
+
+    std::vector<State> out;
+    out.reserve(k);
+    for (std::size_t c = 0; c < k; ++c) {
+        State n = s;
+        n.time += cands[c].total;
+        n.last = cands[c].id;
+        n.done[static_cast<std::size_t>(n.last)] = 1;
+        n.order.push_back(n.last);
+        if (is_late) ++n.late;
+        out.push_back(std::move(n));
+    }
+    return out;
+}
+
 int run(int argc, char* argv[]) {
     // Opcja --time / -t: mierzy tylko czas działania algorytmu (bez wczytywania i zapisu plików).
     bool measure = false;
@@ -56,86 +101,62 @@ int run(int argc, char* argv[]) {
         return 1;
     }
 
-    int time = 0;
-    int sum_d = 0;
-    std::vector<int> order;
-
     std::filesystem::path in = args[0];
     auto inst = sched::instance(in);
-    
+    K = inst.size()/K; 
     const auto t_start = std::chrono::steady_clock::now();
 
-    boost::dynamic_bitset<> delayed_jobs(inst.size());
-    boost::dynamic_bitset<> done_jobs(inst.size());
-
-    // pierwsza instancja to to taka, że jej duedate/processing_time()  najmniejszy a zadanie uda sie ukonczyc przed jego duedate
-
-    int next_job_id = -1;
-    int min_first_due_to_processing = std::numeric_limits<int>::max();
-
-
-
-    for(const auto& job : inst.jobs())
-    {
-        if(job.due_date() < job.processing_time())
-        {
-            delayed_jobs.set(job.id());   
-            continue;
-        }
-        int stosunek = static_cast<int>(std::pow(job.due_date(), 2) / (job.processing_time()-log(job.processing_time())));
-        if(stosunek < min_first_due_to_processing)
-        {
-            min_first_due_to_processing = stosunek;
-            next_job_id = job.id();
-        }
-
+    std::vector<std::pair<int, int>> firsts;  // {stosunek, id}
+    for (const auto& job : inst.jobs()) {
+        if (job.due_date() < job.processing_time()) continue;
+        int stosunek = static_cast<int>(std::pow(job.due_date(), 2) / (job.processing_time() - std::log(job.processing_time())));
+        firsts.emplace_back(stosunek, static_cast<int>(job.id()));
     }
-
-    if(next_job_id == -1){
+    if (firsts.empty()) {
         throw std::invalid_argument("Nie ma zadania, które można wykonać przed jego terminem");
     }
+    std::sort(firsts.begin(), firsts.end());
+    firsts.resize(std::min(firsts.size(), K));
 
-    // std::print("Pierwsze zadanie: {}\n", id_first_job+1);
-    // std::print("Stosunek: {}\n", min_first_due_to_processing);
-
-    time += inst.job(next_job_id).processing_time();
-    done_jobs[next_job_id] = 1;
-    order.push_back(next_job_id + 1);
-
-    // Faza 1: dopóki istnieje zadanie, które zdąży się skończyć w terminie,
-    // bierzemy to o najmniejszym setup + processing.
-    while (done_jobs.count() < inst.size())
-    {
-        auto next = inst.quickest_next_job_w_setup(next_job_id, time, done_jobs);
-        if (next[0] == -1) break;
-        time += next[1];
-        next_job_id = next[0];
-        done_jobs[next_job_id] = 1;
-        order.push_back(next_job_id + 1);
+    std::vector<State> level;
+    for (const auto& [ratio, id] : firsts) {
+        State s;
+        s.done = boost::dynamic_bitset<>(inst.size());
+        s.done[static_cast<std::size_t>(id)] = 1;
+        s.order.push_back(id);
+        s.time = inst.job(static_cast<std::size_t>(id)).processing_time();
+        s.last = id;
+        level.push_back(std::move(s));
     }
 
-    // Faza 2: pozostałe zadania będą spóźnione - dokładamy je w kolejności najmniejszego setup + processing.
-    while (done_jobs.count() < inst.size())
-    {
-        int best = -1;
-        int best_total = std::numeric_limits<int>::max();
-        for (std::size_t i = 0; i < inst.size(); ++i) {
-            if (done_jobs[i]) continue;
-            int total = inst.setups()[static_cast<std::size_t>(next_job_id), i] + inst.job(i).processing_time();
-            if (total < best_total) { best_total = total; best = static_cast<int>(i); }
+    for (std::size_t depth = 1; depth < inst.size(); ++depth) {
+        std::vector<State> next;
+        for (const State& s : level) {
+            auto children = expand(inst, s);
+            for (auto& c : children) next.push_back(std::move(c));
         }
-        time += best_total;
-        next_job_id = best;
-        done_jobs[best] = 1;
-        order.push_back(best + 1);
-        if (time > inst.job(static_cast<std::size_t>(best)).due_date()) ++sum_d;
+        const std::size_t keep = std::min(K, next.size());
+        std::partial_sort(next.begin(), next.begin() + static_cast<std::ptrdiff_t>(keep), next.end(),
+                          [](const State& a, const State& b) {
+                              return a.late != b.late ? a.late < b.late : a.time < b.time;
+                          });
+        next.resize(keep);
+        level = std::move(next);
     }
+
+    const State& best = *std::min_element(level.begin(), level.end(), [](const State& a, const State& b) {
+        return a.late != b.late ? a.late < b.late : a.time < b.time;
+    });
+    const int sum_d = best.late;
+    std::vector<int> order;
+    for (int id : best.order) order.push_back(id + 1);
+
 
     const auto t_end = std::chrono::steady_clock::now();
     if (measure) {
         const double us = static_cast<double>(
             std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count());
-        std::println(std::cerr, "Czas algorytmu: {:.3f} ms", us / 1000.0);
+        std::println(std::cerr, "{}\t{:d}\t{:d}", in.filename().string(), static_cast<int>((us) / 1000.0),sum_d);
     }
 
     std::ostream* out = &std::cout;
@@ -145,10 +166,10 @@ int run(int argc, char* argv[]) {
         if (args.size() >= 2) {
             out_path = args[1];
         } else {
-            // in_<index>_<n>.txt -> ./results/out_160269_<index>_<n>.txt
+            // in_<index>_<n>.txt -> ./results/zad1/out_160269_<index>_<n>.txt
             std::string stem = in.stem().string();
             if (stem.rfind("in_", 0) == 0) stem.erase(0, 3);
-            out_path = std::filesystem::path("results") / ("out_160269_" + stem + ".txt");
+            out_path = std::filesystem::path("results") / "zad1" / ("out_160269_" + stem + ".txt");
         }
         if (out_path.has_parent_path()) {
             std::filesystem::create_directories(out_path.parent_path());

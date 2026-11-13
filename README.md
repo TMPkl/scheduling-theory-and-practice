@@ -7,7 +7,8 @@ The course introduces the basics of task scheduling using single-machine, parall
 ## Structure
 
 - `common/` - shared library (`sched_common`)
-- `zad1/` - assignment 1
+- `zad1/` - assignment 1 (solver, `weryfikator`, `zad1_generator`); next tasks go in `zadN/` the same way
+- `run_all.sh [-j N] [zadN]` - runs a task on `data/zadN/*`, output to `results/zadN/`
 
 ## Building
 
